@@ -1,8 +1,33 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
+const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 
+const app = express();
+app.use(express.json());
+
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+
+let ultimoQR = '';
+
+app.get('/qr', async (req, res) => {
+  if (!ultimoQR) {
+    return res.send('<h2 style="color:white">QR no disponible aún, espera unos segundos y recarga</h2>');
+  }
+  const qrImagen = await QRCode.toDataURL(ultimoQR);
+  res.send(`<html><body style="display:flex;justify-content:center;align-items:center;height:100vh;background:#111">
+    <img src="${qrImagen}" style="width:300px;height:300px"/>
+  </body></html>`);
+});
+
+app.get('/', (req, res) => {
+  res.send('<h2 style="color:white;background:#111;padding:20px">Happy Pappy Bot 🍔 funcionando</h2>');
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log('Servidor HTTP corriendo');
+});
 
 const CATEGORIAS = {
   'COMPRA INSUMOS': 'COMPRA INSUMOS',
@@ -24,7 +49,6 @@ const CATEGORIAS = {
   'IMPUESTOS': 'IMPUESTOS'
 };
 
-// IDs de los grupos autorizados — los llenamos después
 const GRUPOS = {
   campeche: process.env.GRUPO_CAMPECHE_ID || '',
   merida: process.env.GRUPO_MERIDA_ID || ''
@@ -53,18 +77,20 @@ function parsearMensaje(texto) {
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   }
 });
 
 client.on('qr', (qr) => {
-  console.log('Escanea este QR con el celular del bot:');
+  console.log('QR generado — visita /qr para escanearlo');
   qrcode.generate(qr, { small: true });
+  ultimoQR = qr;
 });
 
 client.on('ready', () => {
   console.log('✅ Bot conectado y listo');
-  // Imprime todos los grupos para que puedas copiar los IDs
+  ultimoQR = '';
   client.getChats().then(chats => {
     const grupos = chats.filter(c => c.isGroup);
     console.log('\n📋 GRUPOS DISPONIBLES:');
@@ -79,7 +105,6 @@ client.on('message', async (message) => {
 
     const groupId = chat.id._serialized;
 
-    // Identificar restaurante por grupo
     let restaurante = null;
     if (GRUPOS.campeche && groupId === GRUPOS.campeche) restaurante = 'campeche';
     if (GRUPOS.merida && groupId === GRUPOS.merida) restaurante = 'merida';
@@ -87,56 +112,8 @@ client.on('message', async (message) => {
 
     const texto = message.body.trim();
 
-    // Comando ayuda
     if (texto.toLowerCase() === '/ayuda') {
       await message.reply(
         `📋 *FORMATO PARA REGISTRAR GASTO:*\n\n` +
         `/gasto CATEGORIA | CONCEPTO | MONTO | METODO\n\n` +
-        `*Categorías:*\nCOMPRA INSUMOS, RENTA, LUZ, AGUA, SUELDOS, INTERNET, GAS, GASOLINA, REPARACIONES, LIMPIEZA, EMPAQUES, REPARTIDOR, IMPREVISTOS\n\n` +
-        `*Métodos Campeche:* EFECTIVO, BANORTE, FONDEADORA\n` +
-        `*Métodos Mérida:* EFECTIVO, MERCADO PAGO, KUSPIT\n\n` +
-        `*Ejemplo:*\n/gasto GAS | Pago gas mayo | 500 | EFECTIVO`
-      );
-      return;
-    }
-
-    // Parsear gasto
-    const gasto = parsearMensaje(texto);
-    if (!gasto) return; // Ignorar mensajes que no son gastos
-
-    // Guardar en Supabase
-    const fecha = new Date().toISOString().split('T')[0];
-    const nuevoGasto = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      restaurante,
-      fecha,
-      concepto: gasto.concepto,
-      categoria: gasto.categoria,
-      proveedor: '',
-      metodo_pago: gasto.metodoPago,
-      monto: gasto.monto,
-      timestamp: new Date().toISOString()
-    };
-
-    const { error } = await supabase.from('gastos').insert([nuevoGasto]);
-
-    if (error) throw error;
-
-    const emoji = restaurante === 'campeche' ? '🏖️' : '🌿';
-    await message.reply(
-      `✅ *Gasto registrado*\n\n` +
-      `${emoji} *${restaurante.toUpperCase()}*\n` +
-      `📅 ${fecha}\n` +
-      `📂 ${gasto.categoria}\n` +
-      `📝 ${gasto.concepto}\n` +
-      `💳 ${gasto.metodoPago}\n` +
-      `💰 $${gasto.monto.toFixed(2)} MXN`
-    );
-
-  } catch (error) {
-    console.error('Error:', error);
-    await message.reply('❌ Error al registrar el gasto. Intenta de nuevo.');
-  }
-});
-
-client.initialize();
+        `*Categorías:*\nCOMPRA INSUMOS, RENTA, LUZ, AGUA, SUELDOS, INTERNET, GAS, GASOLINA, REPARACIONES, LIMP
