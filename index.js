@@ -52,6 +52,9 @@ const GRUPOS = {
   merida: process.env.GRUPO_MERIDA_ID || ''
 };
 
+console.log('GRUPO_CAMPECHE_ID:', process.env.GRUPO_CAMPECHE_ID);
+console.log('GRUPO_MERIDA_ID:', process.env.GRUPO_MERIDA_ID);
+
 function parsearMensaje(texto) {
   if (!texto.startsWith('/gasto')) return null;
   const contenido = texto.replace('/gasto', '').trim();
@@ -92,27 +95,46 @@ client.on('ready', () => {
 
 client.on('message', async (message) => {
   try {
+    console.log('MENSAJE RECIBIDO - from:', message.from, 'body:', message.body);
     const chat = await message.getChat();
-    if (!chat.isGroup) return;
+    console.log('CHAT - isGroup:', chat.isGroup, 'id:', chat.id._serialized);
+    
+    if (!chat.isGroup) {
+      console.log('No es grupo, ignorando');
+      return;
+    }
+    
     const groupId = chat.id._serialized;
+    console.log('GROUP ID:', groupId);
+    console.log('CAMPECHE ID configurado:', GRUPOS.campeche);
+    console.log('MERIDA ID configurado:', GRUPOS.merida);
+
     let restaurante = null;
     if (GRUPOS.campeche && groupId === GRUPOS.campeche) restaurante = 'campeche';
     if (GRUPOS.merida && groupId === GRUPOS.merida) restaurante = 'merida';
-    if (!restaurante) return;
-    const texto = message.body.trim();
-    if (texto.toLowerCase() === '/ayuda') {
-      await message.reply(
-        'FORMATO PARA REGISTRAR GASTO:\n\n' +
-        '/gasto CATEGORIA | CONCEPTO | MONTO | METODO\n\n' +
-        'Categorias:\nCOMPRA INSUMOS, RENTA, LUZ, AGUA, SUELDOS, INTERNET, GAS, GASOLINA, REPARACIONES, LIMPIEZA, EMPAQUES, REPARTIDOR, IMPREVISTOS\n\n' +
-        'Metodos Campeche: EFECTIVO, BANORTE, FONDEADORA\n' +
-        'Metodos Merida: EFECTIVO, MERCADO PAGO, KUSPIT\n\n' +
-        'Ejemplo:\n/gasto GAS | Pago gas mayo | 500 | EFECTIVO'
-      );
+    console.log('RESTAURANTE:', restaurante);
+    
+    if (!restaurante) {
+      console.log('Grupo no autorizado');
       return;
     }
+
+    const texto = message.body.trim();
+    console.log('TEXTO:', texto);
+
+    if (texto.toLowerCase() === '/ayuda') {
+      await message.reply('FORMATO: /gasto CATEGORIA | CONCEPTO | MONTO | METODO');
+      return;
+    }
+
     const gasto = parsearMensaje(texto);
-    if (!gasto) return;
+    console.log('GASTO PARSEADO:', gasto);
+    
+    if (!gasto) {
+      console.log('No se pudo parsear el mensaje');
+      return;
+    }
+
     const fecha = new Date().toISOString().split('T')[0];
     const nuevoGasto = {
       id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
@@ -125,8 +147,15 @@ client.on('message', async (message) => {
       monto: gasto.monto,
       timestamp: new Date().toISOString()
     };
+
+    console.log('GUARDANDO EN SUPABASE:', nuevoGasto);
     const { error } = await supabase.from('gastos').insert([nuevoGasto]);
-    if (error) throw error;
+    if (error) {
+      console.log('ERROR SUPABASE:', error);
+      throw error;
+    }
+
+    console.log('GASTO GUARDADO, enviando confirmacion');
     const emoji = restaurante === 'campeche' ? 'CAMPECHE' : 'MERIDA';
     await message.reply(
       'Gasto registrado\n\n' +
@@ -137,8 +166,10 @@ client.on('message', async (message) => {
       'Metodo: ' + gasto.metodoPago + '\n' +
       'Monto: $' + gasto.monto.toFixed(2) + ' MXN'
     );
+    console.log('CONFIRMACION ENVIADA');
+
   } catch (error) {
-    console.error('Error:', error);
+    console.error('ERROR GENERAL:', error);
     await message.reply('Error al registrar el gasto. Intenta de nuevo.');
   }
 });
