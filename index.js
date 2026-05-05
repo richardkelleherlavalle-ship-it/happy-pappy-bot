@@ -32,19 +32,38 @@ const CATEGORIAS = {
   'RENTA': 'RENTA',
   'LUZ': 'LUZ',
   'AGUA': 'AGUA',
+  'EMPRESA MKT': 'EMPRESA MKT',
+  'SOFTWARE': 'SOFTWARE',
   'SUELDOS': 'SUELDOS',
   'INTERNET': 'INTERNET',
-  'GAS': 'GAS',
-  'GASOLINA': 'GASOLINA',
-  'REPARACIONES': 'REPARACIONES Y MANTENIMIENTO',
-  'LIMPIEZA': 'SUMINISTROS DE LIMPIEZA',
-  'EMPAQUES': 'EMPAQUES Y BOLSAS',
-  'REPARTIDOR': 'PAGO DE REPARTIDOR',
-  'IMPREVISTOS': 'IMPREVISTOS',
   'ADS': 'ADS',
-  'SOFTWARE': 'SOFTWARE',
+  'GASTOS MKT': 'GASTOS MKT',
+  'SEGUROS': 'SEGUROS',
+  'REPARACIONES Y MANTENIMIENTO': 'REPARACIONES Y MANTENIMIENTO',
+  'REPARACIONES': 'REPARACIONES Y MANTENIMIENTO',
+  'INSUMOS PROPIOS': 'INSUMOS PROPIOS',
+  'INSUMOS': 'INSUMOS PROPIOS',
+  'SUMINISTROS DE LIMPIEZA': 'SUMINISTROS DE LIMPIEZA',
+  'LIMPIEZA': 'SUMINISTROS DE LIMPIEZA',
+  'SUMINISTROS DEL LOCAL': 'SUMINISTROS DEL LOCAL',
+  'LOCAL': 'SUMINISTROS DEL LOCAL',
+  'PAGO DE REPARTIDOR': 'PAGO DE REPARTIDOR',
+  'REPARTIDOR': 'PAGO DE REPARTIDOR',
+  'GASOLINA': 'GASOLINA',
+  'GAS': 'GAS',
+  'GASTO EVENTOS': 'GASTO EVENTOS',
+  'EVENTOS': 'GASTO EVENTOS',
+  'EMPAQUES Y BOLSAS': 'EMPAQUES Y BOLSAS',
+  'EMPAQUES': 'EMPAQUES Y BOLSAS',
+  'COMPRA MATERIAL Y EQUIPO': 'COMPRA MATERIAL Y EQUIPO',
+  'MATERIAL': 'COMPRA MATERIAL Y EQUIPO',
+  'EQUIPO': 'COMPRA MATERIAL Y EQUIPO',
+  'CONTABILIDAD': 'CONTABILIDAD',
+  'IMPREVISTOS': 'IMPREVISTOS',
+  'IMPUESTOS': 'IMPUESTOS',
   'CREDITO': 'CREDITO',
-  'IMPUESTOS': 'IMPUESTOS'
+  'FACTURA': 'FACTURA',
+  'SERVICIO COMPRAS': 'SERVICIO COMPRAS'
 };
 
 const GRUPOS = {
@@ -95,45 +114,30 @@ client.on('ready', () => {
 
 client.on('message', async (message) => {
   try {
-    console.log('MENSAJE RECIBIDO - from:', message.from, 'body:', message.body);
     const chat = await message.getChat();
-    console.log('CHAT - isGroup:', chat.isGroup, 'id:', chat.id._serialized);
-    
-    if (!chat.isGroup) {
-      console.log('No es grupo, ignorando');
-      return;
-    }
-    
+    if (!chat.isGroup) return;
     const groupId = chat.id._serialized;
-    console.log('GROUP ID:', groupId);
-    console.log('CAMPECHE ID configurado:', GRUPOS.campeche);
-    console.log('MERIDA ID configurado:', GRUPOS.merida);
 
     let restaurante = null;
     if (GRUPOS.campeche && groupId === GRUPOS.campeche) restaurante = 'campeche';
     if (GRUPOS.merida && groupId === GRUPOS.merida) restaurante = 'merida';
-    console.log('RESTAURANTE:', restaurante);
-    
-    if (!restaurante) {
-      console.log('Grupo no autorizado');
-      return;
-    }
+    if (!restaurante) return;
 
     const texto = message.body.trim();
-    console.log('TEXTO:', texto);
 
     if (texto.toLowerCase() === '/ayuda') {
-      await message.reply('FORMATO: /gasto CATEGORIA | CONCEPTO | MONTO | METODO');
+      await message.reply(
+        'FORMATO:\n/gasto CATEGORIA | CONCEPTO | MONTO | METODO\n\n' +
+        'CATEGORIAS:\nCOMPRA INSUMOS, RENTA, LUZ, AGUA, EMPRESA MKT, SOFTWARE, SUELDOS, INTERNET, ADS, GASTOS MKT, SEGUROS, REPARACIONES, INSUMOS PROPIOS, LIMPIEZA, LOCAL, REPARTIDOR, GASOLINA, GAS, EVENTOS, EMPAQUES, MATERIAL, CONTABILIDAD, IMPREVISTOS, IMPUESTOS, CREDITO, FACTURA, SERVICIO COMPRAS\n\n' +
+        'Campeche: EFECTIVO, BANORTE, FONDEADORA\n' +
+        'Merida: EFECTIVO, MERCADO PAGO, KUSPIT\n\n' +
+        'Ejemplo:\n/gasto GAS | Pago gas mayo | 500 | EFECTIVO'
+      );
       return;
     }
 
     const gasto = parsearMensaje(texto);
-    console.log('GASTO PARSEADO:', gasto);
-    
-    if (!gasto) {
-      console.log('No se pudo parsear el mensaje');
-      return;
-    }
+    if (!gasto) return;
 
     const fecha = new Date().toISOString().split('T')[0];
     const nuevoGasto = {
@@ -148,28 +152,22 @@ client.on('message', async (message) => {
       timestamp: new Date().toISOString()
     };
 
-    console.log('GUARDANDO EN SUPABASE:', nuevoGasto);
     const { error } = await supabase.from('gastos').insert([nuevoGasto]);
-    if (error) {
-      console.log('ERROR SUPABASE:', error);
-      throw error;
-    }
+    if (error) throw error;
 
-    console.log('GASTO GUARDADO, enviando confirmacion');
-    const emoji = restaurante === 'campeche' ? 'CAMPECHE' : 'MERIDA';
+    const ubicacion = restaurante === 'campeche' ? 'CAMPECHE' : 'MERIDA';
     await message.reply(
       'Gasto registrado\n\n' +
-      emoji + '\n' +
+      ubicacion + '\n' +
       'Fecha: ' + fecha + '\n' +
       'Categoria: ' + gasto.categoria + '\n' +
       'Concepto: ' + gasto.concepto + '\n' +
       'Metodo: ' + gasto.metodoPago + '\n' +
       'Monto: $' + gasto.monto.toFixed(2) + ' MXN'
     );
-    console.log('CONFIRMACION ENVIADA');
 
   } catch (error) {
-    console.error('ERROR GENERAL:', error);
+    console.error('ERROR:', error);
     await message.reply('Error al registrar el gasto. Intenta de nuevo.');
   }
 });
