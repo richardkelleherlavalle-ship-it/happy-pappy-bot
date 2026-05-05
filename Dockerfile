@@ -29,4 +29,4 @@ COPY . .
 
 EXPOSE 3000
 
-CMD ["node", "index.js"]
+CMD ["sh", "-c", "find /app/.wwebjs_auth -name 'SingletonLock' -delete 2>/dev/null; find /app/.wwebjs_auth -name 'SingletonCookie' -delete 2>/dev/null; node index.js"]
